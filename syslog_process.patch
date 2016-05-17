@@ -1,47 +1,63 @@
---- syslog_process.php	2016-05-17 13:53:10.049972728 +0800
-+++ /usr/share/cacti/site/plugins/syslog/syslog_process.php	2016-05-17 15:12:58.001932644 +0800
-@@ -505,33 +505,37 @@
+--- syslog_process.php	2016-05-17 17:19:46.777868944 +0800
++++ /home/klting/syslog/syslog_process.php	2016-05-17 13:53:10.049972728 +0800
+@@ -505,37 +505,33 @@
  $syslog_reports = sizeof($reports);
  
  syslog_debug("We have " . $syslog_reports . " Reports in the database");
--
++
  if (sizeof($reports)) {
  foreach($reports as $syslog_report) {
-+	// 20160517 modified by klting
+-	// 20160517 modified by klting
  	print '   Report: ' . $syslog_report['name'] . "\n";
-+	$syslog_report['min'] = ($syslog_report['timepart']%3600)/60; 
-+ 	$syslog_report['hour'] = floor($syslog_report['timepart']/3600); 
+-	$syslog_report['min'] = ($syslog_report['timepart']%3600)/60; 
+- 	$syslog_report['hour'] = floor($syslog_report['timepart']/3600); 
  	if ($syslog_report['min'] < 10)
  		$syslog_report['min'] = '0' . $syslog_report['min'];
  
--	$base_start_time = $syslog_report['hour'] . ' : ' . $syslog_report['min'];
--
-+	$date = new DateTime(); 
-+	$date->setTimestamp((floor($syslog_report['date']/86400))*86400); 
-+	$base_start_time = $date->format('Y-m-d') . " " .$syslog_report['hour'] . ':' . $syslog_report['min'] .":00"; 
-+	
+-	$date = new DateTime(); 
+-	$date->setTimestamp((floor($syslog_report['date']/86400))*86400); 
+-	$base_start_time = $date->format('Y-m-d') . " " .$syslog_report['hour'] . ':' . $syslog_report['min'] .":00"; 
+-	
++	$base_start_time = $syslog_report['hour'] . ' : ' . $syslog_report['min'];
++
  	$current_time = strtotime("now");
  	if (empty($last_run_time)) {
  		if ($current_time > strtotime($base_start_time)) {
  			/* if timer expired within a polling interval, then poll */
  			if (($current_time - 300) < strtotime($base_start_time)) {
--				$next_run_time = strtotime(date("Y-m-d") . " " . $base_start_time);
-+				$next_run_time = strtotime($base_start_time);
+-				$next_run_time = strtotime($base_start_time);
++				$next_run_time = strtotime(date("Y-m-d") . " " . $base_start_time);
  			}else{
--				$next_run_time = strtotime(date("Y-m-d") . " " . $base_start_time) + 3600*24;
-+				$next_run_time = strtotime($base_start_time) + $syslog_report['timespan'];
+-				$next_run_time = strtotime($base_start_time) + $syslog_report['timespan'];
++				$next_run_time = strtotime(date("Y-m-d") . " " . $base_start_time) + 3600*24;
  			}
  		}else{
--			$next_run_time = strtotime(date("Y-m-d") . " " . $base_start_time);
-+			$next_run_time = strtotime($base_start_time);
+-			$next_run_time = strtotime($base_start_time);
++			$next_run_time = strtotime(date("Y-m-d") . " " . $base_start_time);
  		}
  	}else{
  		$next_run_time = $last_run_time + $seconds_offset;
  	}
  	$time_till_next_run = $next_run_time - $current_time;
  
--	if ($next_run_time < 0) {
-+	if ($time_till_next_run < 0) {
+-	if ($time_till_next_run < 0) {
++	if ($next_run_time < 0) {
  		print '       Next Send: Now' . "\n";
  		print "       Creating Report...\n";
+ 
+@@ -570,13 +566,12 @@
+ 			$sql  .= " AND logtime BETWEEN '". $date1 . "' AND '" . $date2 . "'";
+ 			$sql  .= " ORDER BY logtime DESC";
+ 			$items = syslog_db_fetch_assoc($sql);
++
+ 			syslog_debug("We have " . $syslog_cnn->Affected_Rows() . " items for the Report");
+ 
+ 			if (sizeof($items)) {
+ 			foreach($items as $item) {
+-			// [logtime] => 2016-05-17 09:26:20
+-			list($date,$time) = explode(" ",$item['logtime']);
+-				$reptext .= "<tr>" . $date . "</td><td>" . $time . "</td><td>" . $item['message'] . "</td></tr>\n";
++				$reptext .= "<tr>" . $item['date'] . "</td><td>" . $item['time'] . "</td><td>" . $item['message'] . "</td></tr>\n";
+ 			}
+ 			}
  
