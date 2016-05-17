@@ -535,7 +535,7 @@ foreach($reports as $syslog_report) {
 	}
 	$time_till_next_run = $next_run_time - $current_time;
 
-	if ($time_till_next_run < 0) {
+	if ($time_till_next_run > 0) {
 		print '       Next Send: Now' . "\n";
 		print "       Creating Report...\n";
 
@@ -570,12 +570,13 @@ foreach($reports as $syslog_report) {
 			$sql  .= " AND logtime BETWEEN '". $date1 . "' AND '" . $date2 . "'";
 			$sql  .= " ORDER BY logtime DESC";
 			$items = syslog_db_fetch_assoc($sql);
-
 			syslog_debug("We have " . $syslog_cnn->Affected_Rows() . " items for the Report");
 
 			if (sizeof($items)) {
 			foreach($items as $item) {
-				$reptext .= "<tr>" . $item['date'] . "</td><td>" . $item['time'] . "</td><td>" . $item['message'] . "</td></tr>\n";
+			// [logtime] => 2016-05-17 09:26:20
+			list($date,$time) = explode(" ",$item['logtime']);
+				$reptext .= "<tr>" . $date . "</td><td>" . $time . "</td><td>" . $item['message'] . "</td></tr>\n";
 			}
 			}
 
