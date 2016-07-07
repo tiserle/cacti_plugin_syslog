@@ -1,6 +1,6 @@
---- /home/klting/syslog/syslog_process.php	2016-05-17 13:53:10.049972728 +0800
-+++ /usr/share/cacti/site/plugins/syslog/syslog_process.php	2016-05-17 17:19:46.777868944 +0800
-@@ -505,33 +505,37 @@
+--- syslog_process.php	2016-05-17 13:53:10.049972728 +0800
++++ /usr/share/cacti/site/plugins/syslog/syslog_process.php	2016-07-07 09:57:24.665213505 +0800
+@@ -505,33 +505,39 @@
  $syslog_reports = sizeof($reports);
  
  syslog_debug("We have " . $syslog_reports . " Reports in the database");
@@ -15,13 +15,15 @@
  		$syslog_report['min'] = '0' . $syslog_report['min'];
  
 -	$base_start_time = $syslog_report['hour'] . ' : ' . $syslog_report['min'];
--
 +	$date = new DateTime(); 
 +	$date->setTimestamp((floor($syslog_report['date']/86400))*86400); 
+ 
++	// 20160706 added by klting
++	$last_run_time = floor($syslog_report['date']/86400)*86400-86400;
 +	$base_start_time = $date->format('Y-m-d') . " " .$syslog_report['hour'] . ':' . $syslog_report['min'] .":00"; 
-+	
  	$current_time = strtotime("now");
- 	if (empty($last_run_time)) {
+-	if (empty($last_run_time)) {
++	if (isset($last_run_time)) {
  		if ($current_time > strtotime($base_start_time)) {
  			/* if timer expired within a polling interval, then poll */
  			if (($current_time - 300) < strtotime($base_start_time)) {
@@ -39,13 +41,14 @@
  		$next_run_time = $last_run_time + $seconds_offset;
  	}
  	$time_till_next_run = $next_run_time - $current_time;
- 
+-
 -	if ($next_run_time < 0) {
++	// 20160706 modified by klting from bigger than to small then
 +	if ($time_till_next_run < 0) {
  		print '       Next Send: Now' . "\n";
  		print "       Creating Report...\n";
  
-@@ -566,12 +570,13 @@
+@@ -566,12 +572,13 @@
  			$sql  .= " AND logtime BETWEEN '". $date1 . "' AND '" . $date2 . "'";
  			$sql  .= " ORDER BY logtime DESC";
  			$items = syslog_db_fetch_assoc($sql);

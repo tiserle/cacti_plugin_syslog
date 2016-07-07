@@ -516,10 +516,12 @@ foreach($reports as $syslog_report) {
 
 	$date = new DateTime(); 
 	$date->setTimestamp((floor($syslog_report['date']/86400))*86400); 
+
+	// 20160706 added by klting
+	$last_run_time = floor($syslog_report['date']/86400)*86400-86400;
 	$base_start_time = $date->format('Y-m-d') . " " .$syslog_report['hour'] . ':' . $syslog_report['min'] .":00"; 
-	
 	$current_time = strtotime("now");
-	if (empty($last_run_time)) {
+	if (isset($last_run_time)) {
 		if ($current_time > strtotime($base_start_time)) {
 			/* if timer expired within a polling interval, then poll */
 			if (($current_time - 300) < strtotime($base_start_time)) {
@@ -534,8 +536,8 @@ foreach($reports as $syslog_report) {
 		$next_run_time = $last_run_time + $seconds_offset;
 	}
 	$time_till_next_run = $next_run_time - $current_time;
-
-	if ($time_till_next_run > 0) {
+	// 20160706 modified by klting from bigger than to small then
+	if ($time_till_next_run < 0) {
 		print '       Next Send: Now' . "\n";
 		print "       Creating Report...\n";
 
