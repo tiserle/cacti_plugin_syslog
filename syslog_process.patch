@@ -1,0 +1,151 @@
+--- /home/klting/syslog/syslog_process.php	2016-05-17 13:53:10.049972728 +0800
++++ syslog_process.php	2016-07-09 10:25:44.257587821 +0800
+@@ -23,6 +23,7 @@
+ */
+ 
+ /* do NOT run this script through a web browser */
++
+ if (!isset($_SERVER["argv"][0]) || isset($_SERVER['REQUEST_METHOD'])  || isset($_SERVER['REMOTE_ADDR'])) {
+ 	die("<br><strong>This script is only meant to run at the command line.</strong>");
+ }
+@@ -340,6 +341,23 @@
+ 					foreach($at as $a) {
+ 						$a['message'] = str_replace('  ', "\n", $a['message']);
+ 						$a['message'] = trim($a['message']);
++// 20160707 Modified by klting
++// Spilit date & time from msg
++ $msg = preg_replace('!\s+!', ' ', $a['message']);
++ $msg = ltrim($msg);
++  preg_match("/(2[0-4]|1[012]|0[0-9]):([0-5][0-9]):([0-5][0-9])/", $msg, $matches);
++  $time = $matches[0];
++  if(isset($time))
++  {
++   $array = explode($time,$msg);
++   $message = $array[1];
++  }
++  else
++  {
++   $message = $msg;
++  }
++  $a['message'] = $message;
++  // end of modify
+ 
+ 						if (($alert["method"] == 1 && $alert_count < $max_alerts) || $alert["method"] == 0) {
+ 							if ($alert["method"] == 0) $alertm  = $alerth;
+@@ -505,33 +523,19 @@
+ $syslog_reports = sizeof($reports);
+ 
+ syslog_debug("We have " . $syslog_reports . " Reports in the database");
+-
+ if (sizeof($reports)) {
+ foreach($reports as $syslog_report) {
++	// 20160517 modified by klting
++	// Modify the function of calculate
+ 	print '   Report: ' . $syslog_report['name'] . "\n";
+-	if ($syslog_report['min'] < 10)
+-		$syslog_report['min'] = '0' . $syslog_report['min'];
+-
+-	$base_start_time = $syslog_report['hour'] . ' : ' . $syslog_report['min'];
+-
+-	$current_time = strtotime("now");
+-	if (empty($last_run_time)) {
+-		if ($current_time > strtotime($base_start_time)) {
+-			/* if timer expired within a polling interval, then poll */
+-			if (($current_time - 300) < strtotime($base_start_time)) {
+-				$next_run_time = strtotime(date("Y-m-d") . " " . $base_start_time);
+-			}else{
+-				$next_run_time = strtotime(date("Y-m-d") . " " . $base_start_time) + 3600*24;
+-			}
+-		}else{
+-			$next_run_time = strtotime(date("Y-m-d") . " " . $base_start_time);
+-		}
+-	}else{
+-		$next_run_time = $last_run_time + $seconds_offset;
+-	}
+-	$time_till_next_run = $next_run_time - $current_time;
++	$now = time();
++	$now_date = floor($now/$syslog_report['timespan'])*$syslog_report['timespan'];
+ 
+-	if ($next_run_time < 0) {
++	// You must minus timezone offset to avoid the problem of different timezone
++	$offset = get_timezone_offset('UTC');
++	$next_run_time = $now_date + $syslog_report['timepart']-$offset;
++	$time_till = $now-$next_run_time;
++	if($time_till > 0 && $time_till <= 300) {
+ 		print '       Next Send: Now' . "\n";
+ 		print "       Creating Report...\n";
+ 
+@@ -562,16 +566,35 @@
+ 
+ 		if ($sql != '') {
+ 			$date2 = date("Y-m-d H:i:s", time());
+-			$date1 = date("Y-m-d H:i:s", time() - 86400);
++			# 20160709 Modified by klting
++			// For make the "Last Week" function work.
++			$date1 = date("Y-m-d H:i:s", time() - $syslog_report['timespan']);
++			//$date1 = date("Y-m-d H:i:s", time() - 86400);
+ 			$sql  .= " AND logtime BETWEEN '". $date1 . "' AND '" . $date2 . "'";
+ 			$sql  .= " ORDER BY logtime DESC";
+ 			$items = syslog_db_fetch_assoc($sql);
+-
+ 			syslog_debug("We have " . $syslog_cnn->Affected_Rows() . " items for the Report");
+ 
+ 			if (sizeof($items)) {
+ 			foreach($items as $item) {
+-				$reptext .= "<tr>" . $item['date'] . "</td><td>" . $item['time'] . "</td><td>" . $item['message'] . "</td></tr>\n";
++			// 20160707 added by kltinhg
++			// Spilit date & time from msg
++			 $msg = preg_replace('!\s+!', ' ', $item['message']);
++			 $msg = ltrim($msg);
++  			preg_match("/(2[0-4]|1[012]|0[0-9]):([0-5][0-9]):([0-5][0-9])/", $msg, $matches);
++  			$time = $matches[0];
++  			if(isset($time))
++  			{
++   			$array = explode($time,$msg);
++   			$message = $array[1];
++  			}
++  			else
++  			{			
++   			$message = $msg;
++  			}
++  			$item['message'] = $message;
++			list($date,$time) = explode(" ",$item['logtime']);
++				$reptext .= "<tr><td>" . $date . "</td><td>" . $time . "</td><td>" . $item['message'] . "</td></tr>\n";
+ 			}
+ 			}
+ 
+@@ -589,7 +612,14 @@
+ 				syslog_sendemail($syslog_report['email'], '', 'Event Report - ' . $syslog_report['name'], $headtext, $smsalert);
+ 			}
+ 		}
+-	} else {
++	} 
++	// 20160707 klting
++	// To correct the execute report of cli
++	elseif($time_till < 0) {
++		print '       Next Send: ' . date("Y-m-d H:i:s", $next_run_time) . "\n";
++	}
++	else {
++		$next_run_time = $next_run_time + $syslog_report['timespan'];
+ 		print '       Next Send: ' . date("Y-m-d H:i:s", $next_run_time) . "\n";
+ 	}
+ }
+@@ -631,3 +661,18 @@
+ 
+ 	return $command;
+ }
++
++function get_timezone_offset($remote_tz, $origin_tz = null) {
++    if($origin_tz === null) {
++        if(!is_string($origin_tz = date_default_timezone_get())) {
++            return false; // A UTC timestamp was returned -- bail out!
++        }
++    }
++    $origin_dtz = new DateTimeZone($origin_tz);
++    $remote_dtz = new DateTimeZone($remote_tz);
++    $origin_dt = new DateTime("now", $origin_dtz);
++    $remote_dt = new DateTime("now", $remote_dtz);
++    $offset = $origin_dtz->getOffset($origin_dt) - $remote_dtz->getOffset($remote_dt);
++    return $offset;
++}
++?>
